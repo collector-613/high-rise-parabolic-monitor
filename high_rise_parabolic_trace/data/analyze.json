@@ -1,0 +1,38 @@
+{
+    "total_count": 4,
+    "high_floor": [
+        {
+            "floor": 3,
+            "count": 3
+        },
+        {
+            "floor": 5,
+            "count": 1
+        }
+    ],
+    "risk_building": [
+        {
+            "building_id": "A栋",
+            "count": 3
+        },
+        {
+            "building_id": "B栋",
+            "count": 1
+        }
+    ],
+    "risk_level": [
+        {
+            "risk_level": "中风险",
+            "count": 2
+        },
+        {
+            "risk_level": "高风险",
+            "count": 1
+        },
+        {
+            "risk_level": "低风险",
+            "count": 1
+        }
+    ],
+    "last_update": "2026-05-02 14:02:36"
+}
