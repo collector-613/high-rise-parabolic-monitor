@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>高空抛物智能监测与溯源大数据平台</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #0a1628 url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><path d="M0 0h100v100H0z" fill="none"/><path d="M10 0v100M20 0v100M30 0v100M40 0v100M50 0v100M60 0v100M70 0v100M80 0v100M90 0v100M0 10h100M0 20h100M0 30h100M0 40h100M0 50h100M0 60h100M0 70h100M0 80h100M0 90h100" stroke="rgba(0,150,255,0.1)" stroke-width="0.5"/></svg>') repeat;
+            color: #fff;
+            font-family: "Microsoft YaHei", sans-serif;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .title {
+            text-align: center;
+            font-size: 28px;
+            color: #00ccff;
+            text-shadow: 0 0 10px #00ccff;
+            margin-bottom: 20px;
+        }
+        .grid-container {
+            display: grid;
+            grid-template-columns: 1fr 1.5fr 1.5fr 1fr;
+            grid-template-rows: 1fr 2fr auto;
+            gap: 15px;
+            height: calc(100vh - 100px);
+        }
+        .panel {
+            background: rgba(10, 30, 60, 0.7);
+            border: 1px solid rgba(0, 150, 255, 0.5);
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 0 15px rgba(0, 150, 255, 0.3);
+        }
+        .panel-title {
+            color: #00ccff;
+            font-size: 16px;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        .data-card {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+        }
+        .data-value {
+            font-size: 40px;
+            color: #00ffcc;
+            text-shadow: 0 0 10px #00ffcc;
+            margin-bottom: 10px;
+        }
+        .data-label {
+            font-size: 14px;
+            color: #aaa;
+        }
+        .warning-bar {
+            grid-column: 1 / -1;
+            background: rgba(20, 40, 80, 0.8);
+            border: 1px solid rgba(255, 100, 100, 0.5);
+            border-radius: 8px;
+            padding: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            color: #ff6666;
+            box-shadow: 0 0 15px rgba(255, 100, 100, 0.3);
+            animation: warningPulse 1.5s infinite alternate;
+        }
+        .warning-bar.normal {
+            color: #66ff66;
+            border-color: rgba(100, 255, 100, 0.5);
+            box-shadow: 0 0 15px rgba(100, 255, 100, 0.3);
+            animation: safePulse 1.5s infinite alternate;
+        }
+        @keyframes warningPulse {
+            from { box-shadow: 0 0 15px rgba(255, 100, 100, 0.3); }
+            to { box-shadow: 0 0 25px rgba(255, 100, 100, 0.7); }
+        }
+        @keyframes safePulse {
+            from { box-shadow: 0 0 15px rgba(100, 255, 100, 0.3); }
+            to { box-shadow: 0 0 25px rgba(100, 255, 100, 0.7); }
+        }
+        .chart {
+            width: 100%;
+            height: calc(100% - 30px);
+        }
+        .event-list {
+            height: calc(100% - 30px);
+            overflow-y: auto;
+        }
+        .event-item {
+            padding: 8px;
+            margin: 5px 0;
+            background: rgba(0, 150, 255, 0.1);
+            border-left: 3px solid #00ccff;
+            font-size: 12px;
+        }
+        .event-item.high-risk {
+            border-left-color: #ff4444;
+            background: rgba(255, 100, 100, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <h1 class="title">高空抛物智能监测与溯源大数据平台</h1>
+
+    <div class="grid-container">
+        <!-- 1. 实时速度数据卡片 -->
+        <div class="panel">
+            <div class="panel-title">实时监测数据</div>
+            <div class="data-card">
+                <div class="data-value" id="avg-speed">{{ data.avg_speed }}</div>
+                <div class="data-label">平均坠落速度 (m/s)</div>
+            </div>
+        </div>
+
+        <!-- 2. 抛物时段趋势折线图 -->
+        <div class="panel">
+            <div class="panel-title">抛物发生时段趋势</div>
+            <div class="chart" id="time-chart"></div>
+        </div>
+
+        <!-- 3. 坠落运动轨迹溯源图（已修复，确保能看到） -->
+        <div class="panel">
+            <div class="panel-title">坠落轨迹溯源模拟</div>
+            <div class="chart" id="trajectory-chart"></div>
+        </div>
+
+        <!-- 4. 风险等级饼图 -->
+        <div class="panel">
+            <div class="panel-title">风险等级分布</div>
+            <div class="chart" id="risk-chart"></div>
+        </div>
+
+        <!-- 5. 楼栋抛物热力分布图 -->
+        <div class="panel">
+            <div class="panel-title">楼栋抛物热力分布</div>
+            <div class="chart" id="heatmap-chart"></div>
+        </div>
+
+        <!-- 6. 楼层抛物数量排行 -->
+        <div class="panel">
+            <div class="panel-title">各楼层抛物次数排行</div>
+            <div class="chart" id="floor-chart"></div>
+        </div>
+
+        <!-- 7. 近7天抛物趋势 -->
+        <div class="panel">
+            <div class="panel-title">近7天抛物趋势</div>
+            <div class="chart" id="week-chart"></div>
+        </div>
+
+        <!-- 8. 实时事件滚动列表 -->
+        <div class="panel">
+            <div class="panel-title">实时抛物事件</div>
+            <div class="event-list" id="event-list">
+                {% for event in data.events %}
+                <div class="event-item {% if event.risk_level == '高风险' %}high-risk{% endif %}">
+                    {{ event.event_time|string|slice(0,19) }} | {{ event.building_id }} {{ event.floor }}楼 | 速度:{{ event.speed }}m/s | {{ event.risk_level }}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- 9. 底部风险预警条 -->
+        <div class="warning-bar {% if data.avg_speed < 10 %}normal{% endif %}" id="warning-bar">
+            {% if data.avg_speed >= 10 %}
+                ⚠️ 高风险区域，加强溯源管控！
+            {% else %}
+                ✅ 园区安全，风险状态正常
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+        const rawData = {{ data|tojson }};
+
+        // 速度数字跳动动画
+        const speedEl = document.getElementById('avg-speed');
+        const targetSpeed = parseFloat(speedEl.innerText);
+        let currentSpeed = 0;
+        const speedInterval = setInterval(() => {
+            currentSpeed += (targetSpeed - currentSpeed) * 0.1;
+            speedEl.innerText = currentSpeed.toFixed(2);
+            if (Math.abs(currentSpeed - targetSpeed) < 0.01) {
+                speedEl.innerText = targetSpeed.toFixed(2);
+                clearInterval(speedInterval);
+            }
+        }, 50);
+
+        // 1. 抛物时段趋势折线图
+        const timeChart = echarts.init(document.getElementById('time-chart'));
+        timeChart.setOption({
+            backgroundColor: 'transparent',
+            grid: { left: '10%', right: '10%', bottom: '15%', top: '15%' },
+            xAxis: {
+                type: 'category',
+                data: ['0-6点','6-12点','12-18点','18-24点'],
+                axisLine: { lineStyle: { color: '#00ccff' } },
+                axisLabel: { color: '#aaa' }
+            },
+            yAxis: {
+                type: 'value',
+                axisLine: { lineStyle: { color: '#00ccff' } },
+                axisLabel: { color: '#aaa' },
+                splitLine: { lineStyle: { color: 'rgba(0,150,255,0.1)' } }
+            },
+            series: [{
+                data: rawData.time_dist,
+                type: 'line',
+                smooth:true,
+                lineStyle:{color:'#00ccff',width:3},
+                areaStyle:{color:'rgba(0,204,255,0.2)'},
+                itemStyle:{color:'#00ccff'}
+            }]
+        });
+
+        // 2. 风险等级饼图
+        const riskChart = echarts.init(document.getElementById('risk-chart'));
+        riskChart.setOption({
+            backgroundColor: 'transparent',
+            tooltip:{trigger:'item'},
+            series: [{
+                type: 'pie',
+                radius:['40%','70%'],
+                avoidLabelOverlap:false,
+                label:{color:'#fff'},
+                data:[
+                    {value:rawData.risk_counts['低风险'],name:'低风险',itemStyle:{color:'#00ff88'}},
+                    {value:rawData.risk_counts['中风险'],name:'中风险',itemStyle:{color:'#ffaa00'}},
+                    {value:rawData.risk_counts['高风险'],name:'高风险',itemStyle:{color:'#ff4444'}}
+                ]
+            }]
+        });
+
+        // 3. 楼栋热力柱状图
+        const heatmapChart = echarts.init(document.getElementById('heatmap-chart'));
+        let buildNameArr = Object.keys(rawData.build_counts);
+        let buildValArr = Object.values(rawData.build_counts);
+        heatmapChart.setOption({
+            backgroundColor: 'transparent',
+            grid: { left: '10%', right: '10%', bottom: '15%', top: '15%' },
+            xAxis: {
+                type: 'category',
+                data:buildNameArr,
+                axisLine: { lineStyle: { color: '#00ccff' } },
+                axisLabel: { color: '#aaa' }
+            },
+            yAxis: {
+                type: 'value',
+                axisLine: { lineStyle: { color: '#00ccff' } },
+                axisLabel: { color: '#aaa' },
+                splitLine: { lineStyle: { color: 'rgba(0,150,255,0.1)' } }
+            },
+            series: [{
+                type:'bar',
+                data:buildValArr,
+                itemStyle:{
+                    color:function(params){
+                        let num = params.data;
+                        if(num>=3) return '#ff4444';
+                        if(num>=1) return '#ffaa00';
+                        return '#00ff88';
+                    }
+                }
+            }]
+        });
+
+        // 4. 坠落轨迹溯源图（修复版，加粗线条+放大箭头+固定坐标范围）
+        const trajectoryChart = echarts.init(document.getElementById('trajectory-chart'));
+        trajectoryChart.setOption({
+            backgroundColor: 'transparent',
+            grid: { left: '10%', right: '10%', bottom: '15%', top: '15%' },
+            xAxis: {
+                type: 'value',
+                name: '水平偏移坐标',
+                nameTextStyle: { color: '#00ccff' },
+                axisLine: { lineStyle: { color: '#00ccff' } },
+                axisLabel: { color: '#aaa' },
+                splitLine: { lineStyle: { color: 'rgba(0,150,255,0.1)' } },
+                min: 0,
+                max: 600
+            },
+            yAxis: {
+                type: 'value',
+                name: '垂直坠落高度',
+                nameTextStyle: { color: '#00ccff' },
+                axisLine: { lineStyle: { color: '#00ccff' } },
+                axisLabel: { color: '#aaa' },
+                splitLine: { lineStyle: { color: 'rgba(0,150,255,0.1)' } },
+                min: 0,
+                max: 600
+            },
+            series: [{
+                type: 'lines',
+                coordinateSystem: 'cartesian2d',
+                data: rawData.trajectories,
+                lineStyle: {
+                    color: '#00ccff',
+                    width: 4,
+                    curveness: 0.3,
+                    opacity: 1
+                },
+                symbol: ['circle', 'arrow'],
+                symbolSize: [12, 18],
+                effect: {
+                    show: true,
+                    trailLength: 0.5,
+                    symbolSize: 10,
+                    loop: true,
+                    color: '#00ff88'
+                }
+            }]
+        });
+
+        // 5. 楼层抛物排行
+        const floorChart = echarts.init(document.getElementById('floor-chart'));
+        let floorSort = Object.entries(rawData.floor_counts).sort((a,b)=>b[1]-a[1]);
+        let floorText = floorSort.map(item=>item[0]+'楼');
+        let floorNum = floorSort.map(item=>item[1]);
+
+        floorChart.setOption({
+            backgroundColor: 'transparent',
+            grid: { left: '25%', right: '10%', bottom: '15%', top: '15%' },
+            xAxis: {
+                type: 'value',
+                axisLine: { lineStyle: { color: '#00ccff' } },
+                axisLabel: { color: '#aaa' },
+                splitLine: { lineStyle: { color: 'rgba(0,150,255,0.1)' } }
+            },
+            yAxis: {
+                type: 'category',
+                data:floorText,
+                axisLine: { lineStyle: { color: '#00ccff' } },
+                axisLabel: { color: '#aaa' }
+            },
+            series: [{
+                type:'bar',
+                data:floorNum,
+                itemStyle:{
+                    color:new echarts.graphic.LinearGradient(1,0,0,0,[
+                        {offset:0,color:'#00ccff'},
+                        {offset:1,color:'#00ff88'}
+                    ])
+                }
+            }]
+        });
+
+        // 6. 近7天抛物趋势
+        const weekChart = echarts.init(document.getElementById('week-chart'));
+        weekChart.setOption({
+            backgroundColor: 'transparent',
+            grid: { left: '10%', right: '10%', bottom: '15%', top: '15%' },
+            xAxis: {
+                type: 'category',
+                data: rawData.week_days,
+                axisLine: { lineStyle: { color: '#00ccff' } },
+                axisLabel: { color: '#aaa' }
+            },
+            yAxis: {
+                type: 'value',
+                axisLine: { lineStyle: { color: '#00ccff' } },
+                axisLabel: { color: '#aaa' },
+                splitLine: { lineStyle: { color: 'rgba(0,150,255,0.1)' } }
+            },
+            series: [{
+                data: rawData.week_counts,
+                type: 'bar',
+                itemStyle: { color: '#00ccff' }
+            }]
+        });
+
+        // 页面自适应缩放
+        window.addEventListener('resize',function(){
+            timeChart.resize();
+            riskChart.resize();
+            heatmapChart.resize();
+            trajectoryChart.resize();
+            floorChart.resize();
+            weekChart.resize();
+        })
+    </script>
+</body>
+</html>
